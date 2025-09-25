@@ -75,7 +75,59 @@ class ReflexAgent(Agent):
         newScaredTimes = [ghostState.scaredTimer for ghostState in newGhostStates]
 
         "*** YOUR CODE HERE ***"
-        return successorGameState.getScore()
+        score = successorGameState.getScore()
+        
+        # get closer to food
+        foodList = newFood.asList()
+        if foodList:
+            # find dist to nearest food pellet
+            minFoodDistance = min([manhattanDistance(newPos, food) for food in foodList])
+            # closer food = better
+            score += 15.0 / (minFoodDistance + 1)
+        
+        # stay away from dangerous ghosts, chase scared ones
+        minGhostDistance = float('inf')
+        
+        for i, ghostState in enumerate(newGhostStates):
+            ghostPos = ghostState.getPosition()
+            ghostDistance = manhattanDistance(newPos, ghostPos)
+            minGhostDistance = min(minGhostDistance, ghostDistance)
+            
+            if newScaredTimes[i] > 0:
+                if ghostDistance <= 1:
+                    score += 250  # bonus for eating scared ghost
+                else:
+                    score += 30.0 / (ghostDistance + 1)  # closer is better
+            else:
+                # ghost is dangerous, avoid
+                if ghostDistance <= 1:
+                    score -= 1200  # penalty for being too close
+                elif ghostDistance <= 2:
+                    score -= 300   # penalty for being close
+                else:
+                    score += ghostDistance * 2  # farther is better
+        
+        # reward eating food pellets
+        foodEaten = currentGameState.getNumFood() - successorGameState.getNumFood()
+        score += foodEaten * 25
+        
+        # reward eating power pellets
+        if newPos in currentGameState.getCapsules():
+            score += 150
+        
+        # penalty for leaving too much food (encourage completion)
+        remainingFood = successorGameState.getNumFood()
+        score -= remainingFood * 0.15
+        
+        # reward being far from all ghosts
+        if minGhostDistance > 3:
+            score += 75
+        
+        # big reward for winning
+        if successorGameState.isWin():
+            score += 500
+        
+        return score
 
 def scoreEvaluationFunction(currentGameState: GameState):
     """
@@ -136,7 +188,51 @@ class MinimaxAgent(MultiAgentSearchAgent):
         Returns whether or not the game state is a losing state
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        def minimax(state, depth, agentIndex):
+            # base case: terminal state or max depth reached
+            if state.isWin() or state.isLose() or depth == 0:
+                return self.evaluationFunction(state)
+            
+            # get possible actions for current agent
+            legalActions = state.getLegalActions(agentIndex)
+            if not legalActions:
+                return self.evaluationFunction(state)
+            
+            # determine next agent and depth
+            nextAgent = (agentIndex + 1) % state.getNumAgents()
+            if nextAgent == 0:  # back to pacman, decrease depth
+                depth -= 1
+            
+            # evaluate all possible actions
+            values = []
+            for action in legalActions:
+                successor = state.generateSuccessor(agentIndex, action)
+                value = minimax(successor, depth, nextAgent)
+                values.append(value)
+            
+            # return max for pacman, min for ghosts
+            if agentIndex == 0:
+                return max(values)
+            else:
+                return min(values)
+        
+        # get pacman's possible actions
+        legalActions = gameState.getLegalActions(0)
+        if not legalActions:
+            return Directions.STOP
+        
+        # find the best action for pacman
+        bestAction = None
+        bestValue = float('-inf')
+        
+        for action in legalActions:
+            successor = gameState.generateSuccessor(0, action)
+            value = minimax(successor, self.depth, 1)  # start with first ghost
+            if value > bestValue:
+                bestValue = value
+                bestAction = action
+        
+        return bestAction
 
 class AlphaBetaAgent(MultiAgentSearchAgent):
     """
