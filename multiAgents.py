@@ -370,9 +370,65 @@ def betterEvaluationFunction(currentGameState: GameState):
     evaluation function (question 5).
 
     DESCRIPTION: <write something here so we know what you did>
+    1. base score from game
+    2. distance to nearest food (closer is better)
+    3. ghost distances (avoid dangerous ghosts, chase scared ones)
+    4. food collection efficiency (fewer remaining food is better)
+    5. win/lose conditions
     """
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    # start with base score
+    score = currentGameState.getScore()
+    
+    # get current state information
+    pacmanPos = currentGameState.getPacmanPosition()
+    food = currentGameState.getFood()
+    ghostStates = currentGameState.getGhostStates()
+    scaredTimes = [ghostState.scaredTimer for ghostState in ghostStates]
+    
+    # get closer to food
+    foodList = food.asList()
+    if foodList:
+        minFoodDistance = min([manhattanDistance(pacmanPos, food) for food in foodList])
+        score += 5.0 / (minFoodDistance + 1)
+    
+    # ghost handling
+    minGhostDistance = float('inf')
+    for i, ghostState in enumerate(ghostStates):
+        ghostPos = ghostState.getPosition()
+        ghostDistance = manhattanDistance(pacmanPos, ghostPos)
+        minGhostDistance = min(minGhostDistance, ghostDistance)
+        
+        if scaredTimes[i] > 0:
+            # ghost is scared, chase
+            if ghostDistance <= 1:
+                score += 100 
+            else:
+                score += 20.0 / (ghostDistance + 1) 
+        else:
+            # ghost is dangerous, avoid
+            if ghostDistance <= 1:
+                score -= 500 
+            elif ghostDistance <= 2:
+                score -= 100
+            else:
+                score += ghostDistance * 0.5
+    
+    # food efficiency
+    remainingFood = currentGameState.getNumFood()
+    score -= remainingFood * 1.0
+    
+    # safety bonus
+    if minGhostDistance > 3:
+        score += 25
+    
+    # win/lose conditions
+    if currentGameState.isWin():
+        score += 500
+    elif currentGameState.isLose():
+        score -= 500
+    
+    return score
 
 # Abbreviation
 better = betterEvaluationFunction
